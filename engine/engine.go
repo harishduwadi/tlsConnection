@@ -9,6 +9,8 @@ import (
 
 	"github.com/harishduwadi/tlsConnection/db"
 
+	"github.com/harishduwadi/sfcertbot/certbot"
+	"github.com/harishduwadi/sfcertbot/certificate"
 	certbotconfig "github.com/harishduwadi/sfcertbot/config"
 	"github.com/harishduwadi/tlsConnection/config"
 )
@@ -17,7 +19,12 @@ func Start(db *db.Dbmanager, certConfig *certbotconfig.Configuration) {
 
 	updatedDNS := make(map[string][]string)
 
-	// TODO: need to call the register function of the certbot
+	requestCertConfig := new(certbotconfig.Configuration)
+	requestCertConfig.KeyFileName = certConfig.KeyFileName
+	requestCertConfig.LetsEncryptUrl = certConfig.LetsEncryptUrl
+
+	// Create a RSA key for the client (works fine)
+	certbot.Register(certConfig)
 
 	for _, cert := range certConfig.Certificates {
 		name := cert.CommonName
@@ -47,6 +54,9 @@ func Start(db *db.Dbmanager, certConfig *certbotconfig.Configuration) {
 				continue
 			}
 
+			// Append all the certificates in the list whose validity is expired
+			requestCertConfig.Certificates = append(requestCertConfig.Certificates, cert)
+
 			updatedDNS[name] = append(updatedDNS[name], ip)
 
 			// For each entry that enters here marshal config to another file for the certbot to read
@@ -58,12 +68,23 @@ func Start(db *db.Dbmanager, certConfig *certbotconfig.Configuration) {
 		}
 	}
 
+	fmt.Println(requestCertConfig)
+
+	certpackage := new(certificate.Certificate)
+	acmeClient := certbot.CreateClient(requestCertConfig)
+
+	// Create new certificate for all the expired domains
+	for _, cert := range requestCertConfig.Certificates {
+		certpackage.CertConfig = &cert
+		certpackage.SetEnvironmentVariables()
+		certpackage.CreateValidCertificate(acmeClient)
+		certpackage.CleanEnvironmentVariables()
+	}
+
 	checkAndUpdateDB(db, updatedDNS)
 }
 
 func checkAndUpdateDB(db *db.Dbmanager, DNSANDIP map[string][]string) {
-
-	fmt.Println(DNSANDIP)
 
 	conf := &tls.Config{
 		InsecureSkipVerify: true,
@@ -128,7 +149,7 @@ func updateDB(name string, ip string, certificate *config.CertificateEntry, db *
 			log.Println(err)
 			continue
 		}
-		if sanID == -1 {
+		if sanID != -1 {
 			continue
 		}
 		err = db.AddSANEntry(sanname, certificateid)
