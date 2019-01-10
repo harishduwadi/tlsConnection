@@ -10,7 +10,7 @@ logfile: logs
 
 xmlfiledestination: ./certconfig.xml
 
-  #- t.supplyframe.com, cdn.t.supplyframe.com
+  #- cdn.t.supplyframe.com
 
  # "sentry.tindie.com":
  #   - "54.203.191.248"

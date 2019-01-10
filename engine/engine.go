@@ -12,13 +12,11 @@ import (
 	"github.com/harishduwadi/tlsConnection/config"
 )
 
-func Start(db *db.Dbmanager, dns []string, xmlfiledestination string) {
+func Start(db *db.Dbmanager, DNS []string, xmlfiledestination string) {
 
-	conf := &tls.Config{
-		InsecureSkipVerify: true,
-	}
+	updateDNS := make(map[string][]string)
 
-	for _, name := range dns {
+	for _, name := range DNS {
 		ips, err := net.LookupHost(name)
 		if err != nil {
 			log.Println(err)
@@ -35,11 +33,46 @@ func Start(db *db.Dbmanager, dns []string, xmlfiledestination string) {
 			}
 
 			if !update {
-				log.Println(name, "No Updating Needed")
+				log.Println("NO UPDATING NEEDED", name)
 				continue
 			}
 
-			// Add the xml file to a file
+			updateDNS[name] = append(updateDNS[name], ip)
+
+			// For each entry that enters here marshal config to another file for the certbot to read
+
+			// TODO Need to find a way to either make a new Configuration.xml or maybe just call the certbot function
+			// Call certbot here to create a new certificate for the specific entry
+
+			/* Checking all the certificate of the SAN domains; just to make sure*/
+		}
+	}
+
+	checkAndUpdateDB(db, updateDNS)
+}
+
+func checkAndUpdateDB(db *db.Dbmanager, DNSWIP map[string][]string) {
+
+	conf := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	for name, ips := range DNSWIP {
+
+		for _, ip := range ips {
+
+			// Check if servername and ip pair needs updating from the DB
+			update, err := needsUpdating(name, ip, db)
+			if err != nil {
+				log.Println(config.Error, err)
+				return
+			}
+
+			// Here if update is still needed then cerbot didn't properly create new certificate and deploy the certificate
+			if update {
+				log.Println(config.Error, "UPDATING NEEDED", name)
+				continue
+			}
 
 			certificate, err := setUpConnection(conf, ip, "443", name)
 			if err != nil {
@@ -47,24 +80,31 @@ func Start(db *db.Dbmanager, dns []string, xmlfiledestination string) {
 				continue
 			}
 
-			err = db.AddCertificate(name, ip, certificate.Subject, certificate.SerialNumber, certificate.Validity, certificate.Issuer)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+			updateDB(name, ip, certificate, db)
 
-			certificateid, err := db.GetCertificateID(name, ip, certificate.SerialNumber)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			for _, sanname := range certificate.AlterDomains {
-				err = db.AddSANEntries(sanname, certificateid)
-				if err != nil {
-					log.Println(err)
-				}
-			}
-			/* Checking all the certificate of the SAN domains; just to make sure*/
+		}
+	}
+
+}
+
+func updateDB(name string, ip string, certificate *config.CertificateEntry, db *db.Dbmanager) {
+	// TODO Need to add update function where we need to update the entry instead of keep on adding new entry
+	err := db.AddCertificate(name, ip, certificate.Subject, certificate.SerialNumber, certificate.Validity, certificate.Issuer)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	certificateid, err := db.GetCertificateID(name, ip, certificate.SerialNumber)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, sanname := range certificate.AlterDomains {
+		err = db.AddSANEntries(sanname, certificateid)
+		if err != nil {
+			log.Println(err)
 		}
 	}
 }

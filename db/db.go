@@ -51,7 +51,7 @@ func (db *Dbmanager) GetExpireDate(servername string, ip string) (time.Time, err
 	queryString := "Select validity From certificates Where servername=$1 and ip=$2"
 	result := db.dbsql.QueryRow(queryString, servername, ip)
 	var expireDate time.Time
-	err := result.Scan(expireDate)
+	err := result.Scan(&expireDate)
 	if err == sql.ErrNoRows {
 		return time.Now(), nil
 	}
