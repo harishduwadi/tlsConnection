@@ -9,17 +9,27 @@ import (
 
 	"github.com/harishduwadi/tlsConnection/db"
 
+	certbotconfig "github.com/harishduwadi/sfcertbot/config"
 	"github.com/harishduwadi/tlsConnection/config"
 )
 
-func Start(db *db.Dbmanager, DNS []string, xmlfiledestination string) {
+func Start(db *db.Dbmanager, certConfig *certbotconfig.Configuration) {
 
-	updateDNS := make(map[string][]string)
+	updatedDNS := make(map[string][]string)
 
-	for _, name := range DNS {
+	// TODO: need to call the register function of the certbot
+
+	for _, cert := range certConfig.Certificates {
+		name := cert.CommonName
+
+		// TODO wildcard entries isn't being covered in this list currently
+		// TODO Need to remove the duplicate entries like digikey.enterprise and fe.enterprise
+		// 		Duplicate in the sense they share same certificate -- wild card entries
+		// 		Currently we have two wild-card entries *.supplyframe.com and *.enterprise-demo.supplyframe.com
+
 		ips, err := net.LookupHost(name)
 		if err != nil {
-			log.Println(err)
+			log.Println(config.Error, err)
 			continue
 		}
 
@@ -33,11 +43,11 @@ func Start(db *db.Dbmanager, DNS []string, xmlfiledestination string) {
 			}
 
 			if !update {
-				log.Println("NO UPDATING NEEDED", name)
+				log.Println("NO UPDATING NEEDED", name, ip)
 				continue
 			}
 
-			updateDNS[name] = append(updateDNS[name], ip)
+			updatedDNS[name] = append(updatedDNS[name], ip)
 
 			// For each entry that enters here marshal config to another file for the certbot to read
 
@@ -48,20 +58,30 @@ func Start(db *db.Dbmanager, DNS []string, xmlfiledestination string) {
 		}
 	}
 
-	checkAndUpdateDB(db, updateDNS)
+	checkAndUpdateDB(db, updatedDNS)
 }
 
-func checkAndUpdateDB(db *db.Dbmanager, DNSWIP map[string][]string) {
+func checkAndUpdateDB(db *db.Dbmanager, DNSANDIP map[string][]string) {
+
+	fmt.Println(DNSANDIP)
 
 	conf := &tls.Config{
 		InsecureSkipVerify: true,
 	}
 
-	for name, ips := range DNSWIP {
+	for name, ips := range DNSANDIP {
 
 		for _, ip := range ips {
 
-			// Check if servername and ip pair needs updating from the DB
+			certificate, err := setUpConnection(conf, ip, "443", name)
+			if err != nil {
+				log.Println(config.Error, err)
+				continue
+			}
+
+			updateDB(name, ip, certificate, db)
+
+			// Check if servername and ip pair has been updated in the DB
 			update, err := needsUpdating(name, ip, db)
 			if err != nil {
 				log.Println(config.Error, err)
@@ -70,17 +90,8 @@ func checkAndUpdateDB(db *db.Dbmanager, DNSWIP map[string][]string) {
 
 			// Here if update is still needed then cerbot didn't properly create new certificate and deploy the certificate
 			if update {
-				log.Println(config.Error, "UPDATING NEEDED", name)
-				continue
+				log.Println(config.Error, "UPDATING UNSUCCESSFUL", name, ip)
 			}
-
-			certificate, err := setUpConnection(conf, ip, "443", name)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			updateDB(name, ip, certificate, db)
 
 		}
 	}
@@ -88,21 +99,39 @@ func checkAndUpdateDB(db *db.Dbmanager, DNSWIP map[string][]string) {
 }
 
 func updateDB(name string, ip string, certificate *config.CertificateEntry, db *db.Dbmanager) {
-	// TODO Need to add update function where we need to update the entry instead of keep on adding new entry
-	err := db.AddCertificate(name, ip, certificate.Subject, certificate.SerialNumber, certificate.Validity, certificate.Issuer)
+
+	certificateid, err := db.GetCertificateEntry(name, ip)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	certificateid, err := db.GetCertificateID(name, ip, certificate.SerialNumber)
+	if certificateid == -1 {
+		err = db.AddCertificateEntry(name, ip, certificate.Subject, certificate.SerialNumber, certificate.Validity, certificate.Issuer)
+	} else {
+		err = db.UpdateCertificateEntry(certificateid, certificate.Subject, certificate.SerialNumber, certificate.Validity, certificate.Issuer)
+	}
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	certificateid, err = db.GetCertificateEntry(name, ip)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
 	for _, sanname := range certificate.AlterDomains {
-		err = db.AddSANEntries(sanname, certificateid)
+		sanID, err := db.GetSANEntry(sanname, certificateid)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if sanID == -1 {
+			continue
+		}
+		err = db.AddSANEntry(sanname, certificateid)
 		if err != nil {
 			log.Println(err)
 		}
@@ -117,7 +146,9 @@ func needsUpdating(servername string, ip string, db *db.Dbmanager) (bool, error)
 	}
 
 	// TODO; what if the certificate expires when the program runs
-	nextRunTime := time.Now().AddDate(0, 0, 7)
+	nextRunTime := time.Now().In(time.UTC).AddDate(0, 0, 7)
+
+	// Note: expireDate is always in UTC(GMT) timezone
 	if expireDate.Before(nextRunTime) {
 		return true, nil
 	}
@@ -126,7 +157,7 @@ func needsUpdating(servername string, ip string, db *db.Dbmanager) (bool, error)
 }
 
 func setUpConnection(conf *tls.Config, ipaddr string, port string, serverName string) (*config.CertificateEntry, error) {
-	log.Println("ADDED", serverName, "\t", ipaddr)
+	log.Println("ADDING", serverName, ipaddr)
 	conf.ServerName = serverName
 	conn, err := tls.Dial("tcp", ipaddr+":"+port, conf)
 	if err != nil {
@@ -146,7 +177,7 @@ func setUpConnection(conf *tls.Config, ipaddr string, port string, serverName st
 	certificate := &config.CertificateEntry{
 		Subject:      cert.Subject.CommonName,
 		SerialNumber: serialNumberInHex,
-		Validity:     cert.NotAfter,
+		Validity:     cert.NotAfter.In(time.UTC),
 		AlterDomains: cert.DNSNames,
 		Issuer:       cert.Issuer.CommonName,
 	}

@@ -21,10 +21,10 @@ type CertificateEntry struct {
 }
 
 type Yamlconfig struct {
-	Dbconf             *DbConfig `yaml: "dbconf"`
-	Dns                []string  `yaml: "dns"`
-	Logfile            string    `yaml: logfile`
-	XmlFileDestination string    `yaml: xmlfiledestination`
+	Dbconf             *DbConfig `yaml:"dbconf"`
+	Dns                []string  `yaml:"dns"`
+	Logfile            string    `yaml:"logfile"`
+	XmlFileDestination string    `yaml:"xmlfiledestination"`
 }
 
 const (

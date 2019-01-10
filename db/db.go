@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,25 +27,36 @@ func New(config *config.DbConfig) (*Dbmanager, error) {
 	return dbm, nil
 }
 
-func (db *Dbmanager) AddCertificate(servername string, ip string, commonname string, serialnumber string, validity time.Time, issuer string) error {
+func (db *Dbmanager) AddCertificateEntry(servername string, ip string, commonname string, serialnumber string, validity time.Time, issuer string) error {
 	queryString := "Insert into certificates values(DEFAULT, $1, $2, $3, $4, $5, $6)"
 	_, err := db.dbsql.Exec(queryString, servername, ip, commonname, serialnumber, validity, issuer)
-	return err
+	if err != nil {
+		return errors.New("AddCertificateEntry " + err.Error())
+	}
+	return nil
 }
 
-func (db *Dbmanager) AddSANEntries(sanname string, certificateID int) error {
-
+func (db *Dbmanager) AddSANEntry(sanname string, certificateID int) error {
 	queryString := "Insert into sanentries Values(DEFAULT, $1, $2)"
 	_, err := db.dbsql.Exec(queryString, sanname, certificateID)
-	return err
+	if err != nil {
+		return errors.New("AddSANEntry " + err.Error())
+	}
+	return nil
 }
 
-func (db *Dbmanager) GetCertificateID(servername string, ip string, serialnumber string) (int, error) {
-	queryString := "Select id From certificates Where servername=$1 and ip=$2 and serialnumber=$3"
-	result := db.dbsql.QueryRow(queryString, servername, ip, serialnumber)
-	var id int
-	err := result.Scan(&id)
-	return id, err
+func (db *Dbmanager) GetCertificateEntry(servername string, ip string) (int, error) {
+	queryString := "Select id From certificates Where servername=$1 and ip=$2"
+	result := db.dbsql.QueryRow(queryString, servername, ip)
+	var certificateId int
+	err := result.Scan(&certificateId)
+	if err == sql.ErrNoRows {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, errors.New("GetCertificateEntry " + err.Error())
+	}
+	return certificateId, nil
 }
 
 func (db *Dbmanager) GetExpireDate(servername string, ip string) (time.Time, error) {
@@ -56,9 +68,32 @@ func (db *Dbmanager) GetExpireDate(servername string, ip string) (time.Time, err
 		return time.Now(), nil
 	}
 	if err != nil {
-		return time.Now(), err
+		return time.Now(), errors.New("GetExpireDate " + err.Error())
 	}
 	return expireDate, nil
+}
+
+func (db *Dbmanager) GetSANEntry(sanname string, certificateID int) (int, error) {
+	queryString := "Select id From sanentries where name=$1 and certificateID=$2"
+	result := db.dbsql.QueryRow(queryString, sanname, certificateID)
+	var sanID int
+	err := result.Scan(&sanID)
+	if err == sql.ErrNoRows {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, errors.New("GetSANEntry " + err.Error())
+	}
+	return sanID, nil
+}
+
+func (db *Dbmanager) UpdateCertificateEntry(id int, commonname string, serialnumber string, validity time.Time, issuer string) error {
+	queryString := "Update certificates set commonname=$1, serialnumber=$2, validity=$3, issuer=$4 where id=$5"
+	_, err := db.dbsql.Exec(queryString, commonname, serialnumber, validity, issuer, id)
+	if err != nil {
+		return errors.New("UpdateCertificateEntry " + err.Error())
+	}
+	return nil
 }
 
 func (db *Dbmanager) Close() {

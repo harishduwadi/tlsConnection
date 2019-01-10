@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,13 +10,22 @@ import (
 	"github.com/harishduwadi/tlsConnection/db"
 	"github.com/harishduwadi/tlsConnection/engine"
 
+	certbotconfig "github.com/harishduwadi/sfcertbot/config"
 	"github.com/harishduwadi/tlsConnection/config"
 	yaml "gopkg.in/yaml.v2"
 )
 
 func main() {
 
-	yamlconf, err := readconfig()
+	yamlconf, err := readyamlconfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	certConfig := new(certbotconfig.Configuration)
+
+	err = readxmlconfig(certConfig, yamlconf.XmlFileDestination)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -37,11 +47,11 @@ func main() {
 	}
 	defer db.Close()
 
-	engine.Start(db, yamlconf.Dns, yamlconf.XmlFileDestination)
+	engine.Start(db, certConfig)
 
 }
 
-func readconfig() (*config.Yamlconfig, error) {
+func readyamlconfig() (*config.Yamlconfig, error) {
 
 	yamlFile, err := ioutil.ReadFile("config.yaml")
 	if err != nil {
@@ -55,4 +65,19 @@ func readconfig() (*config.Yamlconfig, error) {
 	}
 
 	return conf, nil
+}
+
+func readxmlconfig(config *certbotconfig.Configuration, configFileLocation string) error {
+	xmlFile, err := ioutil.ReadFile(configFileLocation)
+	if err != nil {
+		log.Fatal("Error opening file:", err)
+		return err
+	}
+	err = xml.Unmarshal(xmlFile, &config)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	return nil
+
 }
