@@ -31,3 +31,8 @@ const (
 	Error = "[ERROR]"
 	Info  = "[INFO]"
 )
+
+type Opts struct {
+	PopulateDB        bool `short:"p" long:"populateDB" description:"This is used when we want to add a new domain in the DB. Note: Domains List is taken from the Configuration.xml file"`
+	CertbotController bool `short:"c" long:"controller" description:"This is used as the controller that checks the Db and updates, and sends the certificate to the respective end points as required"`
+}

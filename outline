@@ -1,0 +1,28 @@
+
+
+- main will call certbotmanager with db config and parsed xml configuration with list of domains that is available
+
+
+- certbotmanager should be run every week 
+- needs to have a signal interrupt and a clean shutdown when signal interrupt is executed
+
+- Have a option of populating the DB with the xml file
+- or run daemon that checks certificate updating
+
+- certbotmanager
+    - [Not Needed: Will Update Either Way] Needs to check if the DB is up to date
+        - Done by checking the certificates the website currently is using with net connect
+        - maybe print the mismatch in the DB in the web
+    - Again loop through all the domains listed in the configuration
+        - Check which domains needs certificate updating
+        - Add the domain to the list of certificate that certbot needs to create
+    - Call certbot with the list of domains entries that needs to have a new certificate
+    - Update the DB entry with the updated certificates and private key
+    - Send the new certificate to the corresponding endpoint agents, where the certificate is replaced
+        - wait for a reply from the agent, Either success or failure (w/ timeout)
+    - log the result from the agent in the endpoints.
+    
+
+Things to Do:
+    - WildCard entries aren't handled properly. It just checks the servername currently,
+        - Currently we have two wild-card entries *.supplyframe.com and *.enterprise-demo.supplyframe.com

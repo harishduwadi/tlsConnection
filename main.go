@@ -7,8 +7,10 @@ import (
 	"log"
 	"os"
 
+	flags "github.com/jessevdk/go-flags"
+
+	"github.com/harishduwadi/tlsConnection/certbotmanager"
 	"github.com/harishduwadi/tlsConnection/db"
-	"github.com/harishduwadi/tlsConnection/engine"
 
 	certbotconfig "github.com/harishduwadi/sfcertbot/config"
 	"github.com/harishduwadi/tlsConnection/config"
@@ -47,8 +49,25 @@ func main() {
 	}
 	defer db.Close()
 
-	engine.Start(db, certConfig)
+	opts, err := parseOpts()
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
+	// TODO need to add a new program type that will take care of the signal interupt and also make
+	// the program a daemon
+	certbotmanager.Start(db, certConfig, opts)
+
+}
+
+func parseOpts() (*config.Opts, error) {
+	opt := new(config.Opts)
+	_, err := flags.ParseArgs(opt, os.Args)
+	if err != nil {
+		return opt, err
+	}
+	return opt, nil
 }
 
 func readyamlconfig() (*config.Yamlconfig, error) {
