@@ -27,7 +27,6 @@ func New(config *config.DbConfig) (*Dbmanager, error) {
 	return dbm, nil
 }
 
-//TODO: Change the function defination; db doesn't have servername entry anymore
 func (db *Dbmanager) AddCertificateEntry(commonname string, serialnumber string, validity time.Time, rawCert []byte, rawpkey []byte, issuer string) error {
 	queryString := "Insert into certificates values(DEFAULT, $1, $2, $3, $4, $5, $6)"
 	_, err := db.dbsql.Exec(queryString, commonname, serialnumber, validity, rawCert, rawpkey, issuer)
@@ -60,6 +59,15 @@ func (db *Dbmanager) AddCertificateEndPointEntry(certificateID int, endpointID i
 	_, err := db.dbsql.Exec(queryString, certificateID, endpointID)
 	if err != nil {
 		return errors.New("AddCertificateEndPointEntry " + err.Error())
+	}
+	return nil
+}
+
+func (db *Dbmanager) AddUpdateListEntry(certificateID int, endpointID int) error {
+	queryString := "Insert Into updateList values(DEFAULT, $1, $2, DEFAULT)"
+	_, err := db.dbsql.Exec(queryString, certificateID, endpointID)
+	if err != nil {
+		return errors.New("AddUpdateListEntry " + err.Error())
 	}
 	return nil
 }
