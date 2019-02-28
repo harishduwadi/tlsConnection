@@ -1,0 +1,10 @@
+During populating the DB:
+    If the site with whom we're trying to establish a tls connection doesn't have any certificate, it will return error.
+        Instead need to add a entry like others, and have a expired date in the validity column.
+
+Removing entries from the DB is not properly set up. When should we remove an entry from the DB?
+
+
+TLS connection between GRPC Client and Server
+https://jbrandhorst.com/post/grpc-auth/
+https://grpc.io/docs/guides/auth.html
