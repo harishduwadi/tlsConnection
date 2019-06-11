@@ -32,3 +32,33 @@ dns:
   - "adtool.supplyframe.com"
   - "t.supplyframe.com"
   - "qa.t.supplyframe.com"
+
+currentDomains:
+  - "datasheetarchive.com":
+    - "alpha.datasheetarchive.com"
+    - "origin-cdn2.datasheetarchive.com"
+    - "www.datasheetarchive.com"
+  - "bom.api.supplyframe.com":
+  - "hackaday.io":
+    - "www.hackaday.io"
+    - "freeze.hackaday.io"
+    - "journal.hackaday.io"
+    - "space.hackaday.io"
+  - "hackaday.io": 
+    - "static.hackaday.io" 
+    - "qa.hackaday.io"
+    - "analytics.hackaday.io"
+    - "cdn.hackaday.io"
+    - "origin-cdn.hackaday.io"
+    - "cdn.qa.hackaday.io"
+    - "auth.hackaday.io"
+    - "api.hackaday.io"
+    - "dev.hackaday.io" 
+    - "hackaday.com" 
+    - "www.hackaday.com"
+  - "hackadayarchive.com":
+  - "*.supplyframe.com": # This is in digicert; but w.supplyframe.com is in let's encrypt
+  - "gopart.com":
+    - "www.gopart.com"
+  - "pages.findchips.com":
+  - 
